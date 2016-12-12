@@ -1,0 +1,94 @@
+Código Para MatLab CSNR x SNR 
+
+
+clear
+clc
+close all
+
+tic
+
+% CURVA ÓTIMA
+CSNR = 10.^(0:0.1:3.5); 
+SNR = (1+CSNR).^(1.5);
+plot(10*log10(CSNR),10*log10(SNR),':k')
+
+% SIMULAÇÃO
+Points = 2e3; %Quantidade de sinais enviados
+Bp = [0:2].*pi; %Desvio da modulação em relação à fase
+
+
+for kpindex = 1: length(Bp)
+    bp = Bp(kpindex);
+    
+    % Curva Helicoidal
+    m = linspace(-1,1,5001);
+    helicoidal = [(((m)).*cos(bp.*abs(m)));...
+                   ((m).*sin(bp.*abs(m)));...
+                   abs(m)];
+
+    s_ms = linspace(-1,1,5001);
+    s_ms = round(s_ms*1000)/1000;
+    
+    % Sinal enviado com distribuição uniforme no intervalo [-1,1]
+    s = -1 + 2*rand(1,Points); 
+    s = round(s*1000)/1000;
+    % Determinação da mensagem: M = M(s)
+    M = zeros(1,Points);
+    for sindex = 1:size(s,2)
+        aux = (s_ms == s(sindex))*1;
+        M(sindex) = sum(aux.*m)/sum(aux);
+    end
+    sm = [M.*cos(bp*abs(M));...
+        M.*sin(bp*abs(M))];
+    
+    % CSNR
+    E_m = mean(sm(1,:).^2+sm(2,:).^2); %Energia média do sinal
+    N = E_m./(10.^(0:0.1:3.5)); %Energia média do ruído do canal
+    
+    for Nindex = 1:length(N)
+        
+        % Canal AWGN
+        N_n = N(Nindex);
+        n = [normrnd(0,sqrt(N_n),1,Points);...
+            normrnd(0,sqrt(N_n),1,Points)]; 
+
+        % Mensagem + ruído
+        r = zeros(2,Points);
+        for i = 1:size(n,2)
+            r(:,i) = sm(:,i)+n(:,i);
+        end
+
+        % Estimativa e erro
+        erro = zeros(1,size(r,2));
+        for i = 1:size(r,2)
+            dist = sqrt(sum([(r(1,i)-helicoidal(1,:)).^2;...
+                (r(2,i)-helicoidal(2,:)).^2]));
+            [A,I] = min(dist);
+            erro(i) = 3*(M(i) - m(I))^2;
+        end
+
+        % CSNR e SNR
+        CSNR(kpindex,Nindex) = E_m/N_n;
+        SNR(kpindex,Nindex) = var(M+M)/mean(erro);
+        fprintf('bp = %.0fpi CSNR = %.2f dB SNR = %.2f dB \n',...
+            bp/pi, 10*log10(CSNR(kpindex,Nindex)),10*log10(SNR(kpindex,Nindex)))
+    end
+    hold on
+    plot(10*log10(CSNR(kpindex,:)),10*log10(SNR(kpindex,:)),'k')
+    axis([0 39 0 50]), grid
+    toc
+       
+end
+
+hold on
+xa = 10*log10(max(CSNR));
+ya = 10*log10(max(SNR));
+plot(10*log10(max(CSNR)),10*log10(max(SNR)),'s')
+
+xlabel('CSNR (dB)','Fontsize',14)
+ylabel('SNR (dB)','Fontsize',14)
+text(37,42,'b = 2','HorizontalAlignment','center')
+text(37,35,'b = 1','HorizontalAlignment','center')
+text(37,22,'b = 0','HorizontalAlignment','center')
+
+toc
